@@ -34,6 +34,7 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <autoware_msgs/DetectedObjectArray.h>
 
+
 #include "sat_collision_checker.h"
 
 // #define TRUE_SIZE_LENGTH 3
@@ -91,6 +92,32 @@ class FrenetOptimalTrajectoryPlanner
     double vehicle_length;      // vehicle length [m]
   };
 
+  class MyMap
+  {
+   public:
+    int data[500][500];
+    double heading; // vehicle map heading in global frame
+    double Vx_og;   // vehicle map x in global frame
+    double Vy_og;   // vehicle map y in global frame
+    int width;
+    int height;
+    double resolution;
+    double x_center;  // vehicle map center's x coordination
+    double y_center;  // vehicle map center's y coordination
+
+    MyMap() {
+      memset(data, -1, sizeof(data));
+      heading = 0.0;
+      Vx_og = 0.0;
+      Vy_og = 0.0;
+      width = 0;
+      height = 0;
+      resolution = 0.2;
+      x_center = 0.0;
+      y_center = 0.0;
+    }
+  };
+
   class TestResult
   {
    public:
@@ -130,23 +157,18 @@ class FrenetOptimalTrajectoryPlanner
   std::vector<fop::FrenetPath> frenetOptimalPlanning(fop::Spline2D& cubic_spline, const fop::FrenetState& frenet_state, const int lane_id,
                                                      const double left_width, const double right_width, const double current_speed, 
                                                      const autoware_msgs::DetectedObjectArray& obstacles, const bool check_collision, const bool use_async);
-    std::vector<fop::FrenetPath> frenetOptimalPlanning(fop::Spline2D& cubic_spline, const fop::FrenetState& frenet_state, const int lane_id,
+  std::vector<fop::FrenetPath> frenetOptimalPlanning(fop::Spline2D& cubic_spline, const fop::FrenetState& frenet_state, const int lane_id,
                                                      const double left_width, const double right_width, const double current_speed, 
-                                                     const nav_msgs::OccupancyGrid& map, const bool check_collision, const bool use_async);
+                                                     const nav_msgs::OccupancyGrid& map, const double x_center, const double y_center, const bool check_collision, const bool use_async);
   std::shared_ptr<std::vector<fop::FrenetPath>> all_trajs_;
   std::priority_queue<FrenetPath, std::vector<FrenetPath>, std::greater<std::vector<FrenetPath>::value_type>> candidate_trajs_;
   FrenetPath best_traj_, prev_best_traj_;
   Eigen::Vector3i prev_best_idx_;
-  // grid_map::GridMap vehicle_map_;
-  int vehicle_map_[150][100];
-  // Eigen::MatrixXf vehicle_map_;
-  float Vtheta_og;
-  float Vx_og;
-  float Vy_og;
 
 
 private:
   Setting settings_;
+  MyMap vehicle_map_;
   TestResult test_result_;
   SATCollisionChecker sat_collision_checker_;
 

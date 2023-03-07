@@ -27,6 +27,8 @@
 #include <autoware_msgs/VehicleCmd.h>
 #include <autoware_msgs/DetectedObjectArray.h>
 
+#include "map_engine/map_param.h"
+
 #include <dynamic_reconfigure/server.h>
 #include <frenet_optimal_planner/frenet_optimal_planner_Config.h>
 
@@ -75,6 +77,8 @@ class FrenetOptimalPlannerNode
   fop::Path curr_trajectory_;           // Output Trajectory
   std::vector<double> roi_boundaries_;  //[0] = left boundary length in metre, [1] = right boundary length in metre.
   nav_msgs::OccupancyGrid map_msg;
+  double x_center;
+  double y_center;
 
   // Controllers
   control::PID pid_;
@@ -84,6 +88,7 @@ class FrenetOptimalPlannerNode
   ros::Subscriber lane_info_sub;
   ros::Subscriber obstacles_sub;
   ros::Subscriber map_sub;
+  ros::Subscriber map_param_sub;
 
   ros::Publisher curr_traj_pub;
   ros::Publisher next_traj_pub;
@@ -109,6 +114,7 @@ class FrenetOptimalPlannerNode
   void odomCallback(const nav_msgs::Odometry::ConstPtr& odom_msg);
   void obstaclesCallback(const autoware_msgs::DetectedObjectArray::ConstPtr& input_obstacles);
   void mapCallback(const nav_msgs::OccupancyGrid& message);
+  void mapParamCallback(const map_engine::map_param& message);
 
   // Functions fo publishing results
   void publishEmptyTrajsAndStop();

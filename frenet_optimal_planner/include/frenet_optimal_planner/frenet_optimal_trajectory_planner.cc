@@ -103,10 +103,6 @@ FrenetOptimalTrajectoryPlanner::FrenetOptimalTrajectoryPlanner(FrenetOptimalTraj
 {
   this->settings_ = settings;
   this->test_result_ = TestResult();
-  // vehicle_map_.add("uncertainty_map");
-  // vehicle_map_.setFrameId("ego_vehicle");
-  // vehicle_map_.setGeometry(Length(30, 20), 0.2 , Position(15, 0));
-  memset(vehicle_map_, -1, sizeof(vehicle_map_));
 }
 
 void FrenetOptimalTrajectoryPlanner::updateSettings(Setting& settings)
@@ -242,7 +238,7 @@ FrenetOptimalTrajectoryPlanner::frenetOptimalPlanning(fop::Spline2D& cubic_splin
 std::vector<fop::FrenetPath> 
 FrenetOptimalTrajectoryPlanner::frenetOptimalPlanning(fop::Spline2D& cubic_spline, const fop::FrenetState& frenet_state, const int lane_id,
                                                       const double left_width, const double right_width, const double current_speed, 
-                                                      const nav_msgs::OccupancyGrid& map, const bool check_collision, const bool use_async)
+                                                      const nav_msgs::OccupancyGrid& map, const double x_center, const double y_center, const bool check_collision, const bool use_async)
 {
   // Clear the candidate trajectories from the last planning cycle
   std::priority_queue<FrenetPath, std::vector<FrenetPath>, std::greater<std::vector<FrenetPath>::value_type>> empty;
@@ -258,14 +254,13 @@ FrenetOptimalTrajectoryPlanner::frenetOptimalPlanning(fop::Spline2D& cubic_splin
   tf::quaternionMsgToTF(map.info.origin.orientation, quat);
   double roll, pitch, yaw;
   tf::Matrix3x3(quat).getRPY(roll, pitch, yaw);
-
-  // get vehicle current pose
-  Vx_og = map.info.origin.position.x;
-  Vy_og = map.info.origin.position.y;
-  Vtheta_og = yaw;
-  if (Vtheta_og < 0) {
-    Vtheta_og += 6.28318530718;
+  if (yaw < 0) {
+    yaw += 6.28318530718;
   }
+
+  vehicle_map_.x_center = x_center;
+  vehicle_map_.y_center = y_center;
+
 
   // map.info.origin.position.x = 0;
   // map.info.origin.position.y = 0;
@@ -286,23 +281,19 @@ FrenetOptimalTrajectoryPlanner::frenetOptimalPlanning(fop::Spline2D& cubic_splin
   // }
 
   // store message data to vehicle_map_
+  vehicle_map_.Vx_og = map.info.origin.position.x;
+  vehicle_map_.Vy_og = map.info.origin.position.y;
+  vehicle_map_.width = map.info.width;
+  vehicle_map_.height = map.info.height;
+  vehicle_map_.heading = yaw;
   for (std::vector<int8_t>::const_reverse_iterator iterator = map.data.rbegin();
     iterator != map.data.rend(); ++iterator)
   {
     size_t i = std::distance(map.data.rbegin(), iterator);
-    vehicle_map_[149-i%map.info.width][i/map.info.width] = *iterator;
-    // ROS_INFO("%d %d %d", 149-i%map.info.width, i/map.info.width, *iterator);
+    vehicle_map_.data[(map.info.width-1)-i%map.info.width][i/map.info.width] = *iterator;
+    // ROS_INFO("%d %d %d", map.info.width-1-i%map.info.width, i/map.info.width, *iterator);
     // ros::Duration(0.01).sleep();
   }
-
-  // for (int i = 0; i < 150; i++) {
-  //   for (int j = 0; j < 100; j++) {
-  //     // ROS_INFO("%d %d %d", i, j, vehicle_map_[i][j]);
-  //     // ros::Duration(0.01).sleep();
-  //     std::cout << vehicle_map_[i][j] << " ";
-  //   }
-  //   std::cout << std::endl;
-  // }
 
   // Sample a list of FrenetPaths
   all_trajs_ = std::make_shared<std::vector<fop::FrenetPath>>(generateFrenetPaths(frenet_state, lane_id, left_width, right_width, current_speed));
@@ -506,8 +497,8 @@ std::vector<fop::FrenetPath> FrenetOptimalTrajectoryPlanner::generateFrenetPaths
 
 int FrenetOptimalTrajectoryPlanner::calculateGlobalPaths(std::vector<fop::FrenetPath>& frenet_traj_list, fop::Spline2D& cubic_spline)
 {
-  double sin_Vtheta_og = sin(Vtheta_og);
-  double cos_Vtheta_og = cos(Vtheta_og);
+  double sin_Vtheta_og = sin(vehicle_map_.heading);
+  double cos_Vtheta_og = cos(vehicle_map_.heading);
 
   int num_checks = 0;
   for (int i = 0; i < frenet_traj_list.size(); i++)
@@ -530,30 +521,31 @@ int FrenetOptimalTrajectoryPlanner::calculateGlobalPaths(std::vector<fop::Frenet
       {
         frenet_traj_list[i].x.emplace_back(frenet_x);
         frenet_traj_list[i].y.emplace_back(frenet_y);
-        double dx, dy;
-        dx = frenet_x - Vx_og;
-        dy = frenet_y - Vy_og;
-        double Cx, Cy;
+        double dx, dy;  // difference of x,y between frenet and vechicle origin in global frame
+        dx = frenet_x - vehicle_map_.Vx_og;
+        dy = frenet_y - vehicle_map_.Vy_og;
+        double Cx, Cy;  // coordination of x,y in vehicle frame
         Cx = dx * cos_Vtheta_og + dy * sin_Vtheta_og;
         Cy = dx * sin_Vtheta_og - dy * cos_Vtheta_og;
         // ROS_INFO("%f %f %f %f", dx, dy, Cx, Cy);
         // for (grid_map::GridMapIterator iterator(vehicle_map_); !iterator.isPastEnd(); ++iterator) {
         //   ROS_INFO("%d map", vehicle_map_.at("uncertainty_map", *iterator));
         // }
-        int index_x, index_y;
-        index_x = (int)(Cx * 5);
-        index_y = 50+(int)(Cy * 5);
-        if (Cx >= 0 && Cx <= 30 && Cy >= -10 && Cy <= 10)
+        int index_x, index_y; // index of planned points in vehicle frame
+        index_x = (int)(Cx / vehicle_map_.resolution);
+        index_y = vehicle_map_.height / 2 + (int)(Cy / vehicle_map_.resolution);
+        if (Cx >= 0 && Cx <= vehicle_map_.width && Cy >= (vehicle_map_.y_center - vehicle_map_.height/2)
+          && Cy <= (vehicle_map_.y_center + vehicle_map_.height/2))
         {
-          for (int k = index_x - 12; k < index_x + 12; k++) {
-            for (int l = index_y - 10; l < index_y + 10; l++) {
-              if (k < 0 || k > 149 || l < 0 || l > 99)
+          for (int k = index_x; k < index_x; k++) {
+            for (int l = index_y; l < index_y; l++) {
+              if (k < 0 || k > vehicle_map_.width-1 || l < 0 || l > vehicle_map_.height-1)
               {
                 continue;
               }
-              if (vehicle_map_[k][l] > frenet_traj_list[i].o)
+              if (vehicle_map_.data[k][l] > frenet_traj_list[i].o)
               {
-                frenet_traj_list[i].o = vehicle_map_[k][l];
+                frenet_traj_list[i].o = vehicle_map_.data[k][l];
               }
             }
           }
@@ -673,12 +665,12 @@ int FrenetOptimalTrajectoryPlanner::computeCosts(std::vector<fop::FrenetPath>& f
     
     // ROS_INFO("%d ",traj.o);
 
-    if (traj.o > 90)
+    if (traj.o > 75)
     {
       traj.dyn_cost = 9;
     } else
     {
-      traj.dyn_cost = 10 * settings_.k_occ * occupancy_cost + settings_.k_jerk * (settings_.k_lon * jerk_cost_s + settings_.k_lat * jerk_cost_d);
+      traj.dyn_cost = settings_.k_occ * occupancy_cost + settings_.k_jerk * (settings_.k_lon * jerk_cost_s + settings_.k_lat * jerk_cost_d);
     }
     // traj.dyn_cost = settings_.k_jerk * (settings_.k_lon * jerk_cost_s + settings_.k_lat * jerk_cost_d);
     traj.final_cost = traj.fix_cost + traj.dyn_cost;

@@ -37,6 +37,11 @@
 #include <pcl/filters/extract_indices.h>
 #include <pcl/segmentation/progressive_morphological_filter.h>
 #include <pcl/segmentation/sac_segmentation.h>
+#include <pcl/features/moment_of_inertia_estimation.h>
+#include <pcl/io/pcd_io.h>
+#include <pcl/point_types.h>
+#include <pcl/visualization/cloud_viewer.h>
+#include <pcl/common/transforms.h>
 #include "nav_msgs/GetMap.h"
 #include "sensor_msgs/PointCloud.h"
 #include "sensor_msgs/PointCloud2.h"
@@ -48,6 +53,8 @@
 #include <iomanip>
 #include <ctype.h>
 #include <nav_msgs/Odometry.h>
+#include <std_msgs/UInt8MultiArray.h>
+#include <std_msgs/Float64MultiArray.h>
 
 using namespace std;
 

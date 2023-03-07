@@ -25,7 +25,7 @@ FrenetOptimalTrajectoryPlanner::Setting SETTINGS = FrenetOptimalTrajectoryPlanne
 const double WP_MAX_SEP = 3.0;                                    // Maximum allowable waypoint separation
 const double WP_MIN_SEP = 0.1;                                    // Minimum allowable waypoint separation
 const double HEADING_DIFF_THRESH = M_PI/2;                        // Maximum allowed heading diff between vehicle and path
-const double MAX_DIST_FROM_PATH = 10.0;                           // Maximum allowed distance between vehicle and path
+const double MAX_DIST_FROM_PATH = 8.0;                           // Maximum allowed distance between vehicle and path
 
 /* List of dynamic parameters */
 // Hyperparameters for output path
@@ -146,6 +146,8 @@ FrenetOptimalPlannerNode::FrenetOptimalPlannerNode() : tf_listener(tf_buffer)
   lane_info_sub = nh.subscribe(lane_info_topic, 1, &FrenetOptimalPlannerNode::laneInfoCallback, this);
   // obstacles_sub = nh.subscribe(obstacles_topic, 1, &FrenetOptimalPlannerNode::obstaclesCallback, this);
   map_sub = nh.subscribe("local_costmap/for_planner_map", 1, &FrenetOptimalPlannerNode::mapCallback, this);
+  map_param_sub = nh.subscribe("local_costmap/map_param", 1, &FrenetOptimalPlannerNode::mapParamCallback, this);
+  
   
   ref_path_pub = nh.advertise<nav_msgs::Path>(ref_path_topic, 1);
   curr_traj_pub = nh.advertise<nav_msgs::Path>(curr_traj_topic, 1);
@@ -249,7 +251,7 @@ void FrenetOptimalPlannerNode::odomCallback(const nav_msgs::Odometry::ConstPtr& 
   // Get the planning result 
   std::vector<fop::FrenetPath> best_traj_list = frenet_planner_.frenetOptimalPlanning(ref_path_and_curve.second, start_state_, target_lane_id_, 
                                                                                       roi_boundaries_[0], roi_boundaries_[1], current_state_.v, 
-                                                                                      map_msg, CHECK_COLLISION, USE_ASYNC);
+                                                                                      map_msg, x_center, y_center, CHECK_COLLISION, USE_ASYNC);
 
   // Find the best path from the all candidates 
   fop::FrenetPath best_traj = selectLane(best_traj_list, current_lane_id_);
@@ -345,6 +347,13 @@ void FrenetOptimalPlannerNode::obstaclesCallback(const autoware_msgs::DetectedOb
 void FrenetOptimalPlannerNode::mapCallback(const nav_msgs::OccupancyGrid& message)
 {
   map_msg = message;
+  // ROS_INFO("1111111111111 %f %f %f", message.info.origin.position.x, message.info.origin.position.y, message.info.origin.position.z);
+}
+
+void FrenetOptimalPlannerNode::mapParamCallback(const map_engine::map_param& message)
+{
+  x_center = message.x_position;
+  y_center = message.y_position;
   // ROS_INFO("1111111111111 %f %f %f", message.info.origin.position.x, message.info.origin.position.y, message.info.origin.position.z);
 }
 
@@ -856,7 +865,7 @@ bool FrenetOptimalPlannerNode::calculateControlOutput(const int next_wp_id, cons
 {
   const int wp_id = next_wp_id + NUM_WP_LOOK_AHEAD;
 
-  ROS_INFO("1 %d 2 %d 3 %d", next_wp_id, NUM_WP_LOOK_AHEAD, wp_id);
+  // ROS_INFO("1 %d 2 %d 3 %d", next_wp_id, NUM_WP_LOOK_AHEAD, wp_id);
 
   // If the current path is too short, return error value
   if (curr_trajectory_.x.size() < wp_id + 2)
@@ -870,6 +879,7 @@ bool FrenetOptimalPlannerNode::calculateControlOutput(const int next_wp_id, cons
   {
     // First Term
     const double delta_yaw = fop::unifyAngleRange(curr_trajectory_.yaw[wp_id] - current_state_.yaw);
+    ROS_INFO("delta_yaw %f %f %f", delta_yaw, curr_trajectory_.yaw[wp_id], current_state_.yaw);
 
     // Second Term
     const double c = fop::distance(curr_trajectory_.x[wp_id], curr_trajectory_.y[wp_id], curr_trajectory_.x[wp_id+1], curr_trajectory_.y[wp_id+1]);
