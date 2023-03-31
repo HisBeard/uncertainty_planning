@@ -12,6 +12,7 @@ import glob
 import os
 import sys
 import time
+import getopt
 
 try:
     sys.path.append(glob.glob('../carla/dist/carla-*%d.%d-%s.egg' % (
@@ -29,7 +30,7 @@ import argparse
 import logging
 from numpy import random
 
-def main():
+def main(argv):
     argparser = argparse.ArgumentParser(
         description=__doc__)
     argparser.add_argument(
@@ -93,6 +94,10 @@ def main():
         action='store_true',
         default=False,
         help='Enanble car lights')
+    argparser.add_argument(
+        '--scene',
+        default='long',
+        help='scene <long/compare>')
     args = argparser.parse_args()
 
     logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
@@ -140,16 +145,20 @@ def main():
 
         spawn_points = []
 
-        spawn_points.append(carla.Transform(carla.Location(x=103.32, y=306.74, z=0.4), carla.Rotation(yaw=0)))
-        spawn_points.append(carla.Transform(carla.Location(x=83.32, y=306.74, z=0.4), carla.Rotation(yaw=0)))
+        if args.scene == 'long':
+            spawn_points.append(carla.Transform(carla.Location(x=103.32, y=306.74, z=0.4), carla.Rotation(yaw=0)))
+            spawn_points.append(carla.Transform(carla.Location(x=83.32, y=306.74, z=0.4), carla.Rotation(yaw=0)))
 
-        spawn_points.append(carla.Transform(carla.Location(x=193.9, y=230.74, z=0.4), carla.Rotation(yaw=-90)))
-        spawn_points.append(carla.Transform(carla.Location(x=192.9, y=190.74, z=0.4), carla.Rotation(yaw=240)))
-        spawn_points.append(carla.Transform(carla.Location(x=189.6, y=210.74, z=0.4), carla.Rotation(yaw=90)))
+            spawn_points.append(carla.Transform(carla.Location(x=193.9, y=230.74, z=0.4), carla.Rotation(yaw=-90)))
+            spawn_points.append(carla.Transform(carla.Location(x=192.9, y=190.74, z=0.4), carla.Rotation(yaw=240)))
+            spawn_points.append(carla.Transform(carla.Location(x=189.6, y=210.74, z=0.4), carla.Rotation(yaw=90)))
 
-        spawn_points.append(carla.Transform(carla.Location(x=153.4, y=105.6, z=0.4), carla.Rotation(yaw=180)))
-        spawn_points.append(carla.Transform(carla.Location(x=133.4, y=105.6, z=0.4), carla.Rotation(yaw=180)))
-        spawn_points.append(carla.Transform(carla.Location(x=113.4, y=105.6, z=0.4), carla.Rotation(yaw=180)))
+            spawn_points.append(carla.Transform(carla.Location(x=153.4, y=105.6, z=0.4), carla.Rotation(yaw=180)))
+            spawn_points.append(carla.Transform(carla.Location(x=133.4, y=105.6, z=0.4), carla.Rotation(yaw=180)))
+            spawn_points.append(carla.Transform(carla.Location(x=113.4, y=105.6, z=0.4), carla.Rotation(yaw=180)))
+        elif args.scene == 'compare':
+            spawn_points.append(carla.Transform(carla.Location(x=72.32, y=306.74, z=0.4), carla.Rotation(yaw=0)))
+
 
         # transform6 = carla.Transform(carla.Location(x=83.32, y=306.74, z=0.4), carla.Rotation(yaw=0))
 
@@ -234,7 +243,7 @@ def main():
 if __name__ == '__main__':
 
     try:
-        main()
+        main(sys.argv[1:])
     except KeyboardInterrupt:
         pass
     finally:
